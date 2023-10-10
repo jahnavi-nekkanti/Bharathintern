@@ -1,0 +1,144 @@
+# House Price Prediction
+# Importing Libraries
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+%matplotlib inline
+import warnings
+warnings.filterwarnings('ignore')
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import StandardScaler,PolynomialFeatures
+# Reading Dataset
+columns = ['CRIM', 'ZN', 'INDUS', 'CHAS', 'NOX', 'RM', 'AGE', 'DIS', 'RAD', 'TAX', 'PTRATIO', 'B', 'LSTAT', 'MEDV'] 
+df = pd.read_csv("House Price.csv", header = None, delim_whitespace=True, names = columns)
+df.head(5)
+df.isnull().sum()
+df.describe()
+# Creating subplots of 1 row 
+fig, axs = plt.subplots(2, 7, figsize = (20,10))
+axs = axs.flatten()
+fig.suptitle('Explore Data')
+for i, ax in enumerate(axs) :
+    ax.boxplot(df.iloc[:, i])
+    ax.set_title(df.columns[i])
+#sns.pairplot(data = df, size = 2.5)
+lm = LinearRegression()
+features = df.drop('MEDV', axis = 1)
+target = df['MEDV']
+
+for var in features.columns :
+    lm.fit(df[[var]], target)
+    print(f'The r2 of {var.upper()} is : {lm.score(df[[var]], target).round(2)}')
+    sns.regplot(data = df, x = var, y = 'MEDV')
+    plt.show()
+correlation = df.corr().round(2)
+plt.figure(figsize=(16, 6))
+sns.heatmap(data = correlation, annot = True)
+# X and Y Lists
+x = df[['RM', 'LSTAT']]
+y = df['MEDV']
+
+print(x.shape)
+print(y.shape)
+# Splitting Training and Testing Data
+x_train, x_test, y_train, y_test = train_test_split(x, y, test_size = 0.2, random_state = 42)
+#  Creating and training the Logistic Regression Model
+lm = LinearRegression()
+lm.fit(x_train, y_train)
+yhat_train = lm.predict(x_train)
+# 2 Different methods of obtaining the same rsquare measure
+#print(r2_score(y_train, yhat_train))
+print('\033[1m'+'Model Performance of Training Data'+'\033[0m')
+print('----------------------------------')
+print(f'R2 of training data is : {lm.score(x_train, y_train)}')
+print(f'RMSE of training data is : {np.sqrt(mean_squared_error(y_train, yhat_train))}')
+
+lm2 = LinearRegression()
+lm2.fit(x_test, y_test)
+yhat_test = lm.predict(x_test)
+print('')
+print('\033[1m'+'Model Performance of Test Data'+'\033[0m')
+print('----------------------------------')
+print(f'R2 of training data is : {lm.score(x_test, y_test)}')
+print(f'RMSE of training data is : {np.sqrt(mean_squared_error(y_test, yhat_test))}')
+ax1 = sns.distplot(y, hist = False, color = 'tab:blue', label = 'Y actuals')
+sns.distplot(yhat_train, hist = False, color = 'tab:orange', label = 'Predicted Y Training', ax = ax1)
+sns.distplot(yhat_test, hist = False, color = 'tab:green', label = 'Predicted Y Test', ax = ax1)
+plt.title('Actual vs. Fitted Training vs. Fitted Test Values for MEDV')
+plt.xlabel('MEDV')
+plt.ylabel('Proportion of Features')
+plt.legend()
+plt.show()
+plt.close()
+# Model Evaluation 
+sns.regplot(x = y_test, y = yhat_test)
+plt.xlabel('Y test actuals')
+plt.ylabel('Y test predicted')
+plt.show()
+parameters = [{'alpha' : [0, 0.001, 0.01, 0.1, 1, 10, 100]}]
+rr = Ridge()
+grid1 = GridSearchCV(rr, parameters, cv = 5)
+grid1.fit(x, y)
+print(grid1.best_estimator_)
+#Running another time with 10 k-folds still yields the same result
+parameters = [{'alpha' : [0, 0.001, 0.01, 0.1, 1, 10, 100]}]
+rr = Ridge()
+grid1 = GridSearchCV(rr, parameters, cv = 10)
+grid1.fit(x, y)
+print(grid1.best_estimator_)
+
+rsqarr = []
+order = [1, 2, 3, 4]
+# parameters = [0, 0.001, 0.01, 0.1, 1, 10, 100]
+
+# This checks which polynomial order has the highest R-squared. In this case, it is the 3rd order (0.7557). 
+for var in order :
+    pr = PolynomialFeatures(degree = var)
+    x_train_pr = pr.fit_transform(x_train)
+    x_test_pr = pr.fit_transform(x_test)
+    rm = Ridge(alpha = 100)
+    rm.fit(x_train_pr, y_train)
+    rsqarr.append(rm.score(x_test_pr, y_test))
+
+print(rsqarr)
+yhat_train_ridge = rm.predict(x_train_pr)
+yhat_test_ridge = rm.predict(x_test_pr)
+pr_final = PolynomialFeatures(degree = 3)
+x_train_pr_final = pr_final.fit_transform(x_train)
+x_test_pr_final = pr_final.fit_transform(x_test)
+
+rm = Ridge(alpha = 100)
+rm.fit(x_train_pr_final, y_train)
+yhat_train_pr_final = rm.predict(x_train_pr_final)
+print('\033[1m'+'Model Performance of Training Data'+'\033[0m')
+print('----------------------------------')
+print(f'R2 of training data is : {rm.score(x_train_pr_final, y_train)}')
+print(f'RMSE of training data is : {np.sqrt(mean_squared_error(y_train, yhat_train_pr_final))}')
+
+rm2 = Ridge(alpha = 100)
+rm2.fit(x_test_pr_final, y_test)
+yhat_test_pr_final = rm2.predict(x_test_pr_final)
+print('')
+print('\033[1m'+'Model Performance of Test Data'+'\033[0m')
+print('----------------------------------')
+print(f'R2 of test data is : {rm2.score(x_test_pr_final, y_test)}')
+print(f'RMSE of test data is : {np.sqrt(mean_squared_error(y_test, yhat_test_pr_final))}')
+
+ax2 = sns.distplot(y, hist = False, color = 'tab:purple', label = 'Y actuals')
+sns.distplot(yhat_train_pr_final, hist = False, color = 'tab:blue', label = 'Predicted Y Training', ax = ax2)
+sns.distplot(yhat_test_pr_final, hist = False, color = 'tab:green', label = 'Predicted Y Test', ax = ax2)
+plt.title('Actual vs. Fitted Training vs. Fitted Test Values for MEDV')
+plt.xlabel('MEDV')
+plt.ylabel('Proportion of Features')
+plt.legend()
+plt.show()
+plt.close()
+sns.regplot(x = y_test, y = yhat_test_pr_final)
+plt.xlabel('Y test actuals')
+plt.ylabel('Y test predicted')
+plt.show()
